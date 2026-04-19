@@ -1,0 +1,147 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabase";
+
+export default function DashboardPage() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
+  const [sales, setSales] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadData() {
+      const { data: p } = await supabase.from("products").select("*");
+      const { data: r } = await supabase.from("recipes").select("*");
+      const { data: s } = await supabase.from("sales").select("*");
+      setProducts(p || []);
+      setRecipes(r || []);
+      setSales(s || []);
+    }
+    loadData();
+  }, []);
+
+  function calculateCost(productId: string) {
+    return recipes
+      .filter(r => r.product_id === productId)
+      .reduce((sum, r) => sum + (r.gram / 1000) * r.unit_price, 0);
+  }
+
+  const kpiData = products.map(p => {
+    const cost = calculateCost(p.id);
+    const productSales = sales.filter(s => s.product_id === p.id);
+    const totalRevenue = productSales.reduce((sum, s) => sum + s.sale_price * s.quantity, 0);
+    const totalCost = productSales.reduce((sum, s) => sum + cost * s.quantity, 0);
+    const totalProfit = totalRevenue - totalCost;
+    const totalQty = productSales.reduce((sum, s) => sum + s.quantity, 0);
+    const margin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    return { ...p, cost, totalRevenue, totalCost, totalProfit, totalQty, margin };
+  });
+
+  const totalRevenue = kpiData.reduce((sum, p) => sum + p.totalRevenue, 0);
+  const totalProfit = kpiData.reduce((sum, p) => sum + p.totalProfit, 0);
+  const bestProduct = [...kpiData].sort((a, b) => b.totalProfit - a.totalProfit)[0];
+  const losingCount = kpiData.filter(p => p.totalProfit < 0).length;
+
+  // 🔥 AKSİYON PANELİ LOGIC
+  const actions: string[] = [];
+
+  const lowMargin = kpiData.filter(p => p.margin < 20);
+  if (lowMargin.length > 0) {
+    actions.push(`⚠️ ${lowMargin.length} ürünün kâr marjı düşük`);
+  }
+
+  const losing = kpiData.filter(p => p.totalProfit < 0);
+  if (losing.length > 0) {
+    actions.push(`❌ ${losing.length} ürün zarar ediyor`);
+  }
+
+  if (bestProduct) {
+    actions.push(`🔥 En kârlı ürün: ${bestProduct.name} → öne çıkar`);
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-10">
+      <h1 className="text-3xl font-bold mb-8">Nextal Dashboard</h1>
+
+      <div className="grid grid-cols-4 gap-4 mb-10">
+        <div className="bg-white rounded-2xl p-6 shadow">
+          <p className="text-gray-500 text-sm">Toplam Ciro</p>
+          <p className="text-2xl font-bold">{totalRevenue.toFixed(0)} ₺</p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow">
+          <p className="text-gray-500 text-sm">Toplam Kâr</p>
+          <p className={`text-2xl font-bold ${totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+            {totalProfit.toFixed(0)} ₺
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow">
+          <p className="text-gray-500 text-sm">En Kârlı Ürün</p>
+          <p className="text-2xl font-bold">{bestProduct?.name || "-"}</p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 shadow">
+          <p className="text-gray-500 text-sm">Zarar Eden Ürün</p>
+          <p className={`text-2xl font-bold ${losingCount > 0 ? "text-red-600" : "text-green-600"}`}>
+            {losingCount}
+          </p>
+        </div>
+      </div>
+
+      {/* 🔥 YENİ: AKSİYON PANELİ */}
+      <div className="bg-white rounded-2xl p-6 shadow mb-10">
+        <h2 className="text-xl font-bold mb-4">📊 Aksiyon Paneli</h2>
+
+        {actions.length === 0 && (
+          <p className="text-gray-500">Her şey iyi görünüyor</p>
+        )}
+
+        {actions.map((a, i) => (
+          <p key={i} className="mb-2">{a}</p>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-black text-white">
+            <tr>
+              <th className="p-4 text-left">Ürün</th>
+              <th className="p-4 text-right">Satış Fiyatı</th>
+              <th className="p-4 text-right">Maliyet</th>
+              <th className="p-4 text-right">Birim Kâr</th>
+              <th className="p-4 text-right">Satış Adedi</th>
+              <th className="p-4 text-right">Toplam Kâr</th>
+              <th className="p-4 text-right">Kâr Marjı</th>
+              <th className="p-4 text-left">Durum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...kpiData]
+              .sort((a, b) => b.totalProfit - a.totalProfit)
+              .map(p => {
+                const unitProfit = p.sale_price - p.cost;
+                let status = { label: "✅ İyi", color: "text-green-600" };
+                if (unitProfit < 0) status = { label: "❌ Zarar", color: "text-red-600" };
+                else if (p.margin < 20) status = { label: "⚠️ Düşük", color: "text-yellow-600" };
+
+                return (
+                  <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <td className="p-4 font-medium">{p.name}</td>
+                    <td className="p-4 text-right">{p.sale_price} ₺</td>
+                    <td className="p-4 text-right">{p.cost.toFixed(2)} ₺</td>
+                    <td className={`p-4 text-right font-bold ${unitProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {unitProfit.toFixed(2)} ₺
+                    </td>
+                    <td className="p-4 text-right">{p.totalQty}</td>
+                    <td className={`p-4 text-right font-bold ${p.totalProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {p.totalProfit.toFixed(0)} ₺
+                    </td>
+                    <td className="p-4 text-right">{p.margin.toFixed(1)}%</td>
+                    <td className={`p-4 font-medium ${status.color}`}>{status.label}</td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
