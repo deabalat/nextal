@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         saleDetails.push({
           date: sale.created_at,
           product_id: sale.product_id,
-          product_name: sale.products?.name || "Bilinmiyor",
+          product_name: sale.products?.[0]?.name || "Bilinmiyor",
           quantity: sale.quantity || 1,
           revenue: saleRevenueAmount,
           material_cost: productMaterialCost,
