@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 // PUT: Tedarikçi güncelle
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { name, phone, email, address } = await req.json();
 
     const { data, error } = await supabase
@@ -33,10 +33,10 @@ export async function PUT(
 // DELETE: Tedarikçi sil
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Tedarikçinin faturası var mı kontrol et
     const { count } = await supabase

@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 // DELETE: Fatura sil (Inventory'i ters işlem yap)
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Faturayı getir (invoice items için)
     const { data: invoiceData } = await supabase
